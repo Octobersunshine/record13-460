@@ -8,6 +8,8 @@ pub struct FavoriteGroup {
     pub name: String,
     pub user_id: Uuid,
     pub is_default: bool,
+    pub is_pinned: bool,
+    pub pinned_at: Option<DateTime<Utc>>,
     pub sort_order: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -54,6 +56,30 @@ pub struct DeleteGroupRequest {
 pub struct DeleteGroupResult {
     pub migrated_count: usize,
     pub cleared_count: usize,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PinGroupRequest {
+    pub user_id: Uuid,
+    pub is_pinned: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReorderGroupRequest {
+    pub user_id: Uuid,
+    pub sort_order: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BatchReorderRequest {
+    pub user_id: Uuid,
+    pub items: Vec<BatchReorderItem>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BatchReorderItem {
+    pub group_id: Uuid,
+    pub sort_order: i32,
 }
 
 #[derive(Debug, Serialize)]

@@ -27,6 +27,8 @@ pub async fn create_group(
         name: req.name.trim().to_string(),
         user_id: req.user_id,
         is_default: false,
+        is_pinned: false,
+        pinned_at: None,
         sort_order: req.sort_order.unwrap_or(0),
         created_at: Utc::now(),
         updated_at: Utc::now(),
@@ -51,6 +53,8 @@ fn ensure_default_group(store: &mut crate::state::AppStore, user_id: Uuid) -> Uu
         name: "未分类".to_string(),
         user_id,
         is_default: true,
+        is_pinned: false,
+        pinned_at: None,
         sort_order: i32::MIN,
         created_at: Utc::now(),
         updated_at: Utc::now(),
@@ -70,7 +74,12 @@ pub async fn list_groups(
         .values()
         .cloned()
         .collect();
-    groups.sort_by(|a, b| a.sort_order.cmp(&b.sort_order));
+    groups.sort_by(|a, b| {
+        let a_pin_key = (a.is_pinned, a.pinned_at);
+        let b_pin_key = (b.is_pinned, b.pinned_at);
+        b_pin_key.cmp(&a_pin_key)
+            .then_with(|| a.sort_order.cmp(&b.sort_order))
+    });
     Json(ApiResponse::success(groups))
 }
 
@@ -243,4 +252,88 @@ pub async fn delete_group(
         migrated_count,
         cleared_count,
     })))
+}
+
+pub async fn pin_group(
+    State(state): State<SharedState>,
+    axum::extract::Path(group_id): axum::extract::Path<Uuid>,
+    Json(req): Json<PinGroupRequest>,
+) -> Result<Json<ApiResponse<FavoriteGroup>>, (StatusCode, Json<ApiResponse<()>>)> {
+    let mut store = state.write().await;
+
+    let group = match store.groups.get_mut(&group_id) {
+        Some(g) => g,
+        None => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(ApiResponse::error(404, "分组不存在")),
+            ));
+        }
+    };
+
+    if group.user_id != req.user_id {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ApiResponse::error(403, "无权操作此分组")),
+        ));
+    }
+
+    group.is_pinned = req.is_pinned;
+    group.pinned_at = if req.is_pinned { Some(Utc::now()) } else { None };
+    group.updated_at = Utc::now();
+
+    let result = group.clone();
+    Ok(Json(ApiResponse::success(result)))
+}
+
+pub async fn reorder_group(
+    State(state): State<SharedState>,
+    axum::extract::Path(group_id): axum::extract::Path<Uuid>,
+    Json(req): Json<ReorderGroupRequest>,
+) -> Result<Json<ApiResponse<FavoriteGroup>>, (StatusCode, Json<ApiResponse<()>>)> {
+    let mut store = state.write().await;
+
+    let group = match store.groups.get_mut(&group_id) {
+        Some(g) => g,
+        None => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(ApiResponse::error(404, "分组不存在")),
+            ));
+        }
+    };
+
+    if group.user_id != req.user_id {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ApiResponse::error(403, "无权操作此分组")),
+        ));
+    }
+
+    group.sort_order = req.sort_order;
+    group.updated_at = Utc::now();
+
+    let result = group.clone();
+    Ok(Json(ApiResponse::success(result)))
+}
+
+pub async fn batch_reorder_groups(
+    State(state): State<SharedState>,
+    Json(req): Json<BatchReorderRequest>,
+) -> Result<Json<ApiResponse<Vec<FavoriteGroup>>>, (StatusCode, Json<ApiResponse<()>>)> {
+    let mut store = state.write().await;
+    let mut updated = Vec::new();
+
+    for item in &req.items {
+        if let Some(group) = store.groups.get_mut(&item.group_id) {
+            if group.user_id != req.user_id {
+                continue;
+            }
+            group.sort_order = item.sort_order;
+            group.updated_at = Utc::now();
+            updated.push(group.clone());
+        }
+    }
+
+    Ok(Json(ApiResponse::success(updated)))
 }
