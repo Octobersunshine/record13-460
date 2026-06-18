@@ -1,4 +1,4 @@
-use axum::{routing::{get, post}, Router};
+use axum::{routing::{delete, get, post}, Router};
 use favorite_api::handlers;
 use favorite_api::state::new_state;
 
@@ -9,6 +9,7 @@ async fn main() {
     let app = Router::new()
         .route("/favorite-groups", post(handlers::create_group))
         .route("/favorite-groups", get(handlers::list_groups))
+        .route("/favorite-groups/{group_id}", delete(handlers::delete_group))
         .route("/favorite-items/move", post(handlers::move_item))
         .route("/favorite-items/batch-move", post(handlers::batch_move_items))
         .route("/favorite-groups/{group_id}/items", get(handlers::list_items_by_group))

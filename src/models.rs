@@ -7,6 +7,7 @@ pub struct FavoriteGroup {
     pub id: Uuid,
     pub name: String,
     pub user_id: Uuid,
+    pub is_default: bool,
     pub sort_order: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -40,6 +41,19 @@ pub struct BatchMoveRequest {
     pub item_ids: Vec<Uuid>,
     pub target_group_id: Uuid,
     pub user_id: Uuid,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DeleteGroupRequest {
+    pub user_id: Uuid,
+    pub target_group_id: Option<Uuid>,
+    pub clear_items: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DeleteGroupResult {
+    pub migrated_count: usize,
+    pub cleared_count: usize,
 }
 
 #[derive(Debug, Serialize)]
